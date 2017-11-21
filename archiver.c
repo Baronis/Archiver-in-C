@@ -196,7 +196,7 @@ int subtract(char *archiveName, char *fileName) {
     fseek(archive, iF, SEEK_SET);
     // Leitura do nome do arquivo
     a = fgetc(archive);
-    n = malloc(sizeof(char)*a);
+    n = calloc(a, sizeof(char *));
     for (int i = 0; i < a; ++i)
       n[i] = fgetc(archive);
 
@@ -228,6 +228,7 @@ int subtract(char *archiveName, char *fileName) {
       }
       break;
     } 
+    free(n);
     fseek(archive, iT, SEEK_SET);
     a = fgetc(archive);
     iF += bb*512;
