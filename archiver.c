@@ -29,6 +29,7 @@
 *
 */
 
+// Extrai um arquivo do archive sem remove-lo
 int extract(char *archiveName, char *fileName) {
   FILE *archive, *file;
 
@@ -38,9 +39,8 @@ int extract(char *archiveName, char *fileName) {
 
   int iT, iF = 512, length;
   unsigned short bb;
-  //unsigned short s = 0; 
   unsigned char b1, b2;
-  int a, x, count = 0;
+  int a, x;
   char *n;
 
   file = fopen(fileName, "wb+");
@@ -48,7 +48,6 @@ int extract(char *archiveName, char *fileName) {
     puts("Impossivel abrir arquivo.");
     exit(1);
   }
-  printf("Novo arquivo gerado.\n");
 
   archive = fopen(archiveFileName, "rb+");
   if (archive == NULL) {
@@ -56,20 +55,27 @@ int extract(char *archiveName, char *fileName) {
     fclose(file);
     exit(1);
   }
-
+  // Verifica se existem arquivos gravados
   fseek(archive, 6, SEEK_SET);
-
   a = fgetc(archive);
   if(a == 0) 
     return 0;
   a = fgetc(archive);
   while (a > 0) {
+    // Caso o arquivo tenha sido excluido
     x = fgetc(archive);
+    if(x == 1) {
+      b1 = fgetc(archive);
+      b2 = fgetc(archive);
+      a = fgetc(archive);
+      continue;
+    }
+
     b1 = fgetc(archive);
     b2 = fgetc(archive);
     bb = b1 | b2 << 8;
     iT = ftell(archive);
-
+    // Checar se o nome do arquivo corresponde com o arquivo que sera extraido
     fseek(archive, iF, SEEK_SET);
     a = fgetc(archive);
     n = malloc(sizeof(char)*a);
@@ -77,6 +83,7 @@ int extract(char *archiveName, char *fileName) {
        n[i] = fgetc(archive);
     if (strcmp(n,fileName) == 0) {
       length = bb*512;
+      // Copiar arquivo
       for (int i = 0; i < length; ++i) {
         a = fgetc(archive);
         fputc(a, file);
@@ -87,23 +94,22 @@ int extract(char *archiveName, char *fileName) {
     a = fgetc(archive);
     iF += bb*512;
   }
-
   fclose(file);
   fclose(archive);
-
   return 0;
 }
 
+// Listar arquivos presentes no archive
 int list(char *name) {
   FILE *archive;
   char *fileName = malloc(strlen(name)+strlen(".arc")+1);
   strcpy(fileName, name);
   strcat(fileName, ".arc");
+
   int iT, iF = 512;
   unsigned short bb;
-  unsigned short s = 0; 
   unsigned char b1, b2;
-  int a, x, count = 0;
+  int a, x;
 
   archive = fopen(fileName, "rb+");
   if (archive == NULL) {
@@ -113,6 +119,7 @@ int list(char *name) {
   }
 
   printf("Lista de Arquivos presentes\n");
+  // Verifica se existem arquivos gravados
   fseek(archive, 6, SEEK_CUR);
   a = fgetc(archive);
   printf("Numero de arquivos: %d\n", a);
@@ -120,15 +127,15 @@ int list(char *name) {
     return 0;
   a = fgetc(archive);
   while (a > 0) {
-    
     x = fgetc(archive);
+    // Caso o arquivo nao tenha sido excluido
     if(x == 0) {
       printf("Arquivo %d: ", a);
       b1 = fgetc(archive);
       b2 = fgetc(archive);
       bb = b1 | b2 << 8;
       iT = ftell(archive);
-
+      // Obter nome do arquivo
       fseek(archive, iF, SEEK_SET);
       a = fgetc(archive);
       for (int i = 0; i < a; ++i)
@@ -137,19 +144,19 @@ int list(char *name) {
       fseek(archive, iT, SEEK_SET);
       a = fgetc(archive);
       iF += bb*512;
+    // Caso o arquivo tenha sido excluido
     } else {
+      // Pular para o proximo
       a = fgetc(archive);
       a = fgetc(archive);
       a = fgetc(archive);
     }
-    
   }
-
   fclose(archive);
-
   return 0;
 }
 
+// Remove arquivo do archive
 int subtract(char *archiveName, char *fileName) {
   FILE *archive, *tmp;
 
@@ -180,26 +187,32 @@ int subtract(char *archiveName, char *fileName) {
     exit(1);
   }
 
+  // Verifica se existem arquivos gravados
   fseek(archive, 6, SEEK_SET);
-
   a = fgetc(archive);
-
   if(a == 0) 
     return 0;
 
   a = fgetc(archive);
   while (a > 0) {
-    x = fgetc(archive); //Tratar caso de itens ja excluidos
+    // Pular itens ja excluidos
+    x = fgetc(archive);
+    if(x == 1) {
+      b1 = fgetc(archive);
+      b2 = fgetc(archive);
+      a = fgetc(archive);
+      continue;
+    }
 
+    // Guardar tamanho do arquivo
     b1 = fgetc(archive);
     b2 = fgetc(archive);
     bb = b1 | b2 << 8;
 
-    iT = ftell(archive); // Logo antes do proximo item da tabela
-
-    fseek(archive, iF, SEEK_SET); // Pulou pro 1o arq.
-
-    // Leitura do nome do primeiro arquivo
+    iT = ftell(archive);
+    // Pular pro inicio do arquivo
+    fseek(archive, iF, SEEK_SET);
+    // Leitura do nome do arquivo
     a = fgetc(archive);
     n = malloc(sizeof(char)*a);
     for (int i = 0; i < a; ++i)
@@ -209,18 +222,23 @@ int subtract(char *archiveName, char *fileName) {
       iX = iF;
       iF += bb*512; // Comeco do proximo arq.
       length = bb*512;
-
+      // Marcar arquivo como excluido
       fseek(archive, (iT-3), SEEK_SET);
       fputc(1, archive);
-
+      // Decrementar contador de arquivos
+      fseek(archive, 6, SEEK_SET);
+      x = fgetc(archive);
+      fseek(archive, -1, SEEK_CUR);
+      fputc(x-1, archive);
+      // Armazenar tamanho do archive
       fseek(archive, 0, SEEK_END);
       iM = ftell(archive);
       fseek(archive, 0, SEEK_SET);
-
+      // Tramsferir conteudo para arquivo temporario
       for (int i = 0; i < iM; ++i) {
-        
         a = fgetc(archive);
         x = ftell(archive);
+        // Pular conteudo do arquivo que foi marcado como excluido
         if( (x > iX) && (x <= (iX+length)) ){
           continue;
         }
@@ -234,10 +252,9 @@ int subtract(char *archiveName, char *fileName) {
   }
   fclose(archive);
   fclose(tmp);
-
+  // Substitui anterior pelo temporario
   remove(archiveFileName);
   rename("temp.bin", archiveFileName);
-
   return 0;
 }
 
@@ -259,11 +276,10 @@ int add(char *archiveName, char *fileName) {
     puts("Impossivel abrir arquivo.");
     exit(1);
   }
-
+  //Calcula tamanho necessario (multiplo de 512)
   fseek(file, 0L, SEEK_END);
   double sum = (ftell(file)+1+strlen(fileName));
   unsigned short fileSize = (unsigned short) ceil(sum/512);
-  printf("-- %hu\n", fileSize);
   fclose(file);
 
   file = fopen(fileName, "rb");
@@ -278,45 +294,42 @@ int add(char *archiveName, char *fileName) {
     fclose(file);
     exit(1);
   }
-
+  // Incrementa no contador de arquivos gravados
   fseek(archive, 6, SEEK_SET);
   a = fgetc(archive);
   fseek(archive, -1, SEEK_CUR);
   fputc(a+1, archive);
-  a = fgetc(archive);
 
+  a = fgetc(archive);
+  // Caso o arquivo a ser gravado seja o primeiro
   if(a == 0) {
     fseek(archive, -1, SEEK_CUR);
-    count = 1;
-    fputc(count, archive);
-    count = 0;
-    fputc(count, archive);
-
+    fputc(1, archive);
+    fputc(0, archive);
     b1 = *((unsigned char*)(&fileSize));
     fputc(b1, archive);
     b2 = *((unsigned char*)(&fileSize) + 1);
     fputc(b2, archive);
-
     fputc(0, archive);
-
-    fseek(archive, 0, SEEK_SET);
-    fseek(archive, 512, SEEK_CUR);
-
+    fseek(archive, 512, SEEK_SET);
+  // Caso nao seja o primeiro
   } else {
     count = 1;
     do {
       count++;
-      fseek(archive, 1, SEEK_CUR);
+      a = fgetc(archive);
       b1 = fgetc(archive);
       b2 = fgetc(archive);
-      s += b1 | b2 << 8;
+      // Incrementa o tamanho do arquivo na contagem se o arquivo nao tenha sido excluido
+      if(a == 0)
+        s += b1 | b2 << 8;
+
       a = fgetc(archive);
-      printf("%d\n", s);
     } while(a > 0);
+    // Armazena os valores na tabela e pula para a posicao onde o arquivo sera gravado
     fseek(archive, -1, SEEK_CUR);
     fputc(count, archive);
-    count = 0;
-    fputc(count, archive);
+    fputc(0, archive);
     b1 = *((unsigned char*)(&fileSize));
     fputc(b1, archive);
     b2 = *((unsigned char*)(&fileSize) + 1);
@@ -324,21 +337,16 @@ int add(char *archiveName, char *fileName) {
     fseek(archive, 0, SEEK_SET);
     fseek(archive, 512, SEEK_CUR);
     fseek(archive, s*512, SEEK_CUR);
-    s = 0;
   }
-
+  // Arazena o nome do arquivo e seu tamanho
   fputc(strlen(fileName), archive);
-
   for (int i = 0; i < strlen(fileName); ++i)
     fputc(fileName[i], archive);
-
-  // Copiar arquivo
+  // Copia o arquivo
   while ( (a = fgetc(file)) != EOF )
     fputc(a, archive);
-
   fclose(file);
   fclose(archive);
-
   return 1;
 }
 
@@ -350,9 +358,9 @@ int create(char *name) {
 
   FILE *file = fopen(fileName, "wb+");
 
+  // Armazenar data de criacao do archive
   time_t t = time(NULL);
   struct tm tm = *localtime(&t);
-
   fputc(tm.tm_year, file);
   fputc(tm.tm_mon + 1, file);
   fputc(tm.tm_mday, file);
@@ -360,8 +368,8 @@ int create(char *name) {
   fputc(tm.tm_min, file);
   fputc(tm.tm_sec, file);
 
-  fputc(0, file);
-  fputc(0, file);
+  fputc(0, file); // Zerar numero de arquivos presentes
+  fputc(0, file); // Zerar id do primeiro arquivo
 
   fclose(file);
   return 1;
