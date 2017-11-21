@@ -1,38 +1,19 @@
 // gcc archiver.c -o archiver -lm -std=c99
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
 #include <math.h>
-
 /**
 * Gerenciador de Archives
 * @author Edson da Costa Vitor Junior
 * @author Guilherme Atihe de Oliveira
 * @author Gustavo Batistic Ribeiro
 * @author Matheus Peron Baroni
-*
-* 
-* Estrutura de cabecalho
-    Date yy-mm-dd-hh-mm-ss
-    Number of files included
-    File table
-      id 1 byte
-      is deleted 1 byte
-      file length 2 bytes (/512 - ceil)
-* 
-* Cabecalho individual
-    Tamnaho do nome
-    Nome
-*
-*
 */
-
 // Extrai um arquivo do archive sem remove-lo
 int extract(char *archiveName, char *fileName) {
   FILE *archive, *file;
-
   char *archiveFileName = malloc(strlen(archiveName)+strlen(".arc")+1);
   strcpy(archiveFileName, archiveName);
   strcat(archiveFileName, ".arc");
@@ -78,7 +59,7 @@ int extract(char *archiveName, char *fileName) {
     // Checar se o nome do arquivo corresponde com o arquivo que sera extraido
     fseek(archive, iF, SEEK_SET);
     a = fgetc(archive);
-    n = malloc(sizeof(char)*a);
+    n = calloc(a, sizeof(char *));
     for (int i = 0; i < a; ++i)
        n[i] = fgetc(archive);
     if (strcmp(n,fileName) == 0) {
@@ -90,10 +71,12 @@ int extract(char *archiveName, char *fileName) {
       }
       break;
     }
+    free(n);
     fseek(archive, iT, SEEK_SET);
     a = fgetc(archive);
     iF += bb*512;
   }
+  fflush(file);
   fclose(file);
   fclose(archive);
   return 0;
@@ -159,7 +142,6 @@ int list(char *name) {
 // Remove arquivo do archive
 int subtract(char *archiveName, char *fileName) {
   FILE *archive, *tmp;
-
   char *archiveFileName = malloc(strlen(archiveName)+strlen(".arc")+1);
   strcpy(archiveFileName, archiveName);
   strcat(archiveFileName, ".arc");
@@ -261,7 +243,6 @@ int subtract(char *archiveName, char *fileName) {
 // Adiciona arquivo para o archiver
 int add(char *archiveName, char *fileName) {
   FILE *archive, *file;
-
   char *archiveFileName = malloc(strlen(archiveName)+strlen(".arc")+1);
   strcpy(archiveFileName, archiveName);
   strcat(archiveFileName, ".arc");
@@ -420,8 +401,6 @@ int main(int argc, char *argv[]) {
       for (int i = 3; i < argc; ++i)
         subtract(argv[1], argv[i]);
       break;
-    default:
-      help();
-      break;
+    default: help(); break;
   } return 0;
 }
